@@ -5,6 +5,13 @@ trip is turned into a **1D map along the track (km)**, so trips can be compared 
 causes separated: static ones (masts, tunnels, terrain) versus dynamic ones (weather,
 crowding, time of day).
 
+> **Status: not tested on a train yet.** This is an early version. What has been checked so far:
+> - **Mac:** recording, analysis and the API run end to end on home Wi-Fi, with a simulated GPS track.
+> - **Android:** only tested on a Mac with simulated Termux:API commands, never on a real phone.
+> - **Train Wi-Fi portals:** the presets (`cd`, `ice`, `oebb`) are unverified guesses.
+>
+> Expect fixes after the first real trips.
+
 ## What is measured, and why
 
 On a train, the laptop's Wi-Fi only reaches the access point in the carriage. That link
