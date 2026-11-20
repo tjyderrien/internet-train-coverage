@@ -33,7 +33,7 @@ def sessions():
 
 @app.get("/sessions/{sid}/timeseries")
 def timeseries(sid: int, probe: str | None = None, since: float | None = None):
-    """Raw measurements (time domain). probe in wifi|tcp_rtt|http204|dns|goodput|portal."""
+    """Raw measurements (time domain). probe in wifi|tcp_rtt|http204|dns|goodput|portal|cell|radio."""
     sql = "SELECT t, probe, target, ok, value, bytes, extra FROM measurements WHERE session_id=?"
     args = [sid]
     if probe:

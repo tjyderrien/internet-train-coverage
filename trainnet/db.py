@@ -86,3 +86,34 @@ class DB:
         self.execute(
             "INSERT INTO positions VALUES (?,?,?,?,?,?,?)",
             (sid, t, lat, lon, speed, source, json.dumps(extra) if extra else None))
+
+
+def merge(dst, src_path):
+    """Copy all sessions from another trainnet DB (e.g. the phone's) into dst, renumbering ids.
+    Sessions already present (same start time and host) are skipped."""
+    src = DB(src_path)
+    done = []
+    for s in src.query("SELECT * FROM sessions ORDER BY id"):
+        if dst.query("SELECT 1 FROM sessions WHERE started=? AND host IS ?", (s["started"], s["host"])):
+            continue
+        new = dst.execute("INSERT INTO sessions(started,ended,label,host,config) VALUES (?,?,?,?,?)",
+                          (s["started"], s["ended"], s["label"], s["host"], s["config"])).lastrowid
+        for table, n in (("measurements", 8), ("positions", 7)):
+            rows = src.conn.execute(f"SELECT * FROM {table} WHERE session_id=?", (s["id"],)).fetchall()
+            with dst.lock:
+                dst.conn.executemany(f"INSERT INTO {table} VALUES ({','.join('?' * n)})",
+                                     [(new, *tuple(r)[1:]) for r in rows])
+                dst.conn.commit()
+        done.append((s["id"], new, s["label"]))
+    return done
+
+
+def export(db, dest):
+    """Consistent copy of the live DB (safe while recording), e.g. to Android shared storage."""
+    dest = Path(dest).expanduser()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    out = sqlite3.connect(dest)
+    with db.lock:
+        db.conn.backup(out)
+    out.close()
+    return dest

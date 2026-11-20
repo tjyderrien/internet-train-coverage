@@ -216,12 +216,13 @@ def _stats(rows):
         "dns_ms_median": med(vals("dns")),
         "goodput_kbps_median": med(gp), "goodput_n": int(gp.size),
         "wifi_rssi_median": med(rssi),
+        "cell_dbm_median": med(vals("cell")),       # phone's own serving cell (Android)
     }
 
 
 def session_points(db, sid, route):
     rows = db.query("SELECT t, probe, target, ok, value, extra FROM measurements "
-                    "WHERE session_id=? AND probe IN ('tcp_rtt','http204','dns','goodput','wifi') "
+                    "WHERE session_id=? AND probe IN ('tcp_rtt','http204','dns','goodput','wifi','cell') "
                     "ORDER BY t", (sid,))
     if not rows:
         return []
@@ -295,7 +296,7 @@ def _spearman(a, b):
     return float(np.corrcoef(ra, rb)[0, 1]), int(m.sum())
 
 
-METRICS = ["online", "rtt_ms_median", "loss", "goodput_kbps_median"]
+METRICS = ["online", "rtt_ms_median", "loss", "goodput_kbps_median", "cell_dbm_median"]
 
 
 def correlations(prof):
@@ -324,6 +325,7 @@ def correlations(prof):
     cells = [(x, st) for x in prof["bins"] for st in x["trips"].values()]
     drivers = {
         "tower_nearest_m": [g(x, "tower_nearest_m") for x, _ in cells],
+        "cell_dbm": [g(st, "cell_dbm_median") for _, st in cells],
         "speed_kmh": [g(st, "speed_kmh") for _, st in cells],
         "precipitation": [g(st.get("weather"), "precipitation") for _, st in cells],
         "cloud_cover": [g(st.get("weather"), "cloud_cover") for _, st in cells],

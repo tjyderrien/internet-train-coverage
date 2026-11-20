@@ -53,6 +53,51 @@ trainnet serve                                               # API at http://127
 
 Everything is stored in `data/trainnet.sqlite`.
 
+## Android phone (Termux)
+
+The phone records everything itself: GPS, train Wi-Fi, the same internet probes, **and its
+own cellular signal** (serving cell RSRP/RSRQ, cell ID, neighbours, LTE/5G). Analysis
+stays on the Mac.
+
+What the phone's cell signal adds: the train router and your phone see roughly the same
+outside coverage. If the internet through the train Wi-Fi drops where the phone still has a
+good cell, the train's backhaul is the problem. If both drop, it is coverage.
+
+**Two modes:**
+- *Phone on train Wi-Fi* (normal): the probes measure the train internet, and cell info
+  records the outside coverage at the same time.
+- *Wi-Fi off*: the probes run over your own mobile data (about 5 MB/h from your plan),
+  which measures the operator's network directly.
+
+### One-time setup
+1. Install **Termux** and **Termux:API** from F-Droid. Both must come from the same
+   source; mixing F-Droid and Play Store builds fails. **Termux:Widget** is optional and
+   gives a home-screen button.
+2. Android settings → Apps → Termux:API → Permissions: Location **"Allow all the time"**,
+   Phone **Allow**. Settings → Battery: set Termux and Termux:API to **Unrestricted**.
+3. Copy `dist/trainnet-android.tar.gz` to the phone, for example over home Wi-Fi: on the Mac
+   run `cd ~/train-connectivity/dist && python3 -m http.server 8000`, then in Termux:
+   ```sh
+   pkg install -y curl
+   curl -O http://<mac-ip>:8000/trainnet-android.tar.gz   # Mac IP: ipconfig getifaddr en1
+   tar xzf trainnet-android.tar.gz && sh trainnet/android/install-termux.sh
+   ```
+
+### On the train
+```sh
+trainnet record --label "Praha -> Brno"            # Ctrl-C (Volume-Down + C) on arrival
+```
+The screen can be off: a wake lock is taken automatically. At the end, the database is
+copied to `Documents/trainnet/trainnet.sqlite` on the phone's shared storage.
+
+### Back on the Mac
+```sh
+trainnet merge ~/Downloads/trainnet.sqlite         # imports new trips, skips known ones
+```
+
+If recording stops in the background on Android 12+, the system's "phantom process"
+limit may be killing it. See the Termux wiki for how to disable it with `adb`.
+
 ## Analysis: static or dynamic?
 
 `/routes/{name}/correlations` returns:
@@ -85,7 +130,7 @@ Base URL `http://127.0.0.1:8765`, JSON, CORS open, read-only. The full schema is
 {"session":{...},"recording":true,
  "summary":{"n":97,"online":1.0,"rtt_ms_median":13.1,"rtt_ms_p90":27.0,"loss":0.0,
             "dns_ms_median":24.9,"goodput_kbps_median":44473.9,"goodput_n":1,
-            "wifi_rssi_median":-58.0},
+            "wifi_rssi_median":-58.0,"cell_dbm_median":-97.0},
  "position":{"t":...,"lat":50.08,"lon":14.43,"speed_mps":27.1},
  "measurements":[ /* same rows as timeseries */ ]}
 ```
@@ -98,6 +143,9 @@ Base URL `http://127.0.0.1:8765`, JSON, CORS open, read-only. The full schema is
  {"t":1795168230.1,"probe":"goodput","target":"cloudflare","ok":1,"value":44473.9,
   "extra":{"ttfb_ms":31.0,"total_ms":49.0,"bytes":100000}}]
 ```
+Android adds `cell` (value = serving-cell RSRP in dBm; `extra.serving` holds type,
+ci, pci, tac, mcc, mnc, rsrq, ...; `extra.neighbours` is a list) and `radio` (`extra`:
+data_network_type, data_state, operator). Phone positions have `source: "gps"`.
 `value` units: wifi = dBm, tcp_rtt/http204/dns = ms, goodput = kbit/s. `ok=0` means a
 failure (the most important signal: dead zones).
 

@@ -3,12 +3,13 @@ name = "trainnet"
 version = "0.1.0"
 description = "Wi-Fi and internet quality along train trips, as a 1D map"
 requires-python = ">=3.11"
+# Recording needs only the standard library (so it installs cleanly in Termux).
 dependencies = [
-    "numpy",
-    "fastapi",
-    "uvicorn",
     "pyobjc-framework-CoreWLAN; sys_platform == 'darwin'",
 ]
+
+[project.optional-dependencies]
+analysis = ["numpy", "fastapi", "uvicorn"]
 
 [project.scripts]
 trainnet = "trainnet.cli:main"

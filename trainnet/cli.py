@@ -1,11 +1,11 @@
-"""Command line: trainnet record | portal-test | gpx | route | towers | profile | serve"""
+"""Command line: trainnet record | portal-test | gpx | route | towers | profile | serve | export | merge"""
 import argparse
 import json
 import sys
 import time
+from pathlib import Path
 
-from . import analyze
-from .db import DB, DEFAULT_DB
+from .db import DB, DEFAULT_DB, export, merge
 from .position import PORTAL_PRESETS, read_gpx, read_portal
 
 
@@ -17,12 +17,20 @@ def _status(rec):
             if probe == p and (tgt is None or target == tgt):
                 return r
     w, r, h, g = last("wifi"), last("tcp_rtt", "1.1.1.1"), last("http204"), last("goodput")
+    c = last("cell")
     fmt = lambda x, f: f.format(x) if x is not None else "  -  "
     line = (f"\rrssi {fmt(w and w.get('value'), '{:4.0f}')} dBm | "
             f"rtt {fmt(r and r.get('value'), '{:6.0f}')} ms | "
             f"online {'yes' if h and h['ok'] else 'NO '} | "
             f"goodput {fmt(g and g.get('value'), '{:7.0f}')} kbit/s | "
-            f"used {rec.used_mb_last_hour():5.2f} MB/h   ")
+            f"used {rec.used_mb_last_hour():5.2f} MB/h")
+    if rec.android:
+        gps = rec.gps.last if rec.gps else None
+        spd = gps and gps[1].get("speed")
+        line += (f" | cell {fmt(c and c.get('value'), '{:4.0f}')} dBm {(c or {}).get('target') or ''}"
+                 f" | gps {rec.gps.n if rec.gps else 0} fixes"
+                 f" {fmt(spd and spd * 3.6, '{:3.0f}')} km/h")
+    line += "   "
     sys.stdout.write(line)
     sys.stdout.flush()
 
@@ -40,6 +48,16 @@ def main(argv=None):
     p.add_argument("--goodput-bytes", type=int)
     p.add_argument("--rtt-every", type=float, dest="rtt_s")
     p.add_argument("--budget", type=float, dest="budget_mb_per_h", help="MB per hour cap")
+    p.add_argument("--android", action=argparse.BooleanOptionalAction, default=None,
+                   help="use Termux:API (GPS, cell, Wi-Fi); auto-detected")
+    p.add_argument("--export", help="copy the DB here when the trip ends "
+                   "(Android default: ~/storage/shared/Documents/trainnet/)")
+
+    p = sub.add_parser("export", help="copy the DB to a file (e.g. phone shared storage)")
+    p.add_argument("dest")
+
+    p = sub.add_parser("merge", help="import all sessions from another DB (e.g. the phone's)")
+    p.add_argument("src")
 
     p = sub.add_parser("portal-test", help="fetch an onboard portal URL and show what is found")
     p.add_argument("url")
@@ -72,9 +90,11 @@ def main(argv=None):
     db = DB(a.db)
 
     if a.cmd == "record":
+        from . import android
         from .collect import Recorder
         url = PORTAL_PRESETS.get(a.portal, a.portal)
-        rec = Recorder(db, a.label, portal_url=url, goodput_s=a.goodput_s,
+        is_android = android.available() if a.android is None else a.android
+        rec = Recorder(db, a.label, android=is_android, portal_url=url, goodput_s=a.goodput_s,
                        goodput_bytes=a.goodput_bytes, rtt_s=a.rtt_s,
                        budget_mb_per_h=a.budget_mb_per_h)
         print(f"session {rec.sid} recording -> {a.db}  (Ctrl-C to stop)")
@@ -82,6 +102,20 @@ def main(argv=None):
         n = db.query("SELECT COUNT(*) n, SUM(bytes) b FROM measurements WHERE session_id=?",
                      (rec.sid,))[0]
         print(f"\nsession {rec.sid}: {n['n']} measurements, {(n['b'] or 0)/1e6:.2f} MB used")
+        dest = a.export
+        shared = Path.home() / "storage" / "shared"
+        if dest is None and is_android and shared.exists():
+            dest = shared / "Documents" / "trainnet" / "trainnet.sqlite"
+        if dest:
+            print("copied to", export(db, dest))
+
+    elif a.cmd == "export":
+        print("copied to", export(db, a.dest))
+
+    elif a.cmd == "merge":
+        for old, new, label in merge(db, a.src):
+            print(f"session {old} -> {new}  {label or ''}")
+        print("done")
 
     elif a.cmd == "portal-test":
         url = PORTAL_PRESETS.get(a.url, a.url)
@@ -97,6 +131,7 @@ def main(argv=None):
         print(f"{n} GPX points attached to session {a.session}")
 
     elif a.cmd == "route":
+        from . import analyze
         if a.session:
             pts = [(r["lat"], r["lon"]) for r in db.query(
                 "SELECT lat, lon FROM positions WHERE session_id=? ORDER BY t", (a.session,))]
@@ -108,10 +143,12 @@ def main(argv=None):
         print(f"route {a.name}: {len(r.pl)} vertices, {r.length/1000:.1f} km")
 
     elif a.cmd == "towers":
+        from . import analyze
         bbox = [float(x) for x in a.bbox.split(",")] if a.bbox else None
         print(analyze.import_towers(db, a.csv, bbox), "towers imported")
 
     elif a.cmd == "profile":
+        from . import analyze
         ids = [int(x) for x in a.sessions.split(",")] if a.sessions else None
         prof = analyze.profile(db, a.route, ids, a.bin, not a.no_weather)
         print(json.dumps({"profile": prof, "correlations": analyze.correlations(prof)},
