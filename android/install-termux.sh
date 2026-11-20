@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/sh
-# Install trainnet in Termux. Run from the unpacked folder:  sh android/install-termux.sh
+# Install trainnet in Termux. Run from the cloned folder:  sh internet-train-coverage/android/install-termux.sh
 set -e
 cd "$(dirname "$0")/.."
 
@@ -14,7 +14,7 @@ pip install --upgrade .            # recording needs no compiled dependencies
 mkdir -p "$HOME/.shortcuts"
 cat > "$HOME/.shortcuts/Train record" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/sh
-trainnet record --label "$(date +%Y-%m-%d_%H%M)"
+trainnet
 EOF
 chmod +x "$HOME/.shortcuts/Train record"
 
@@ -25,4 +25,4 @@ echo "- cell:";     termux-telephony-cellinfo | head -c 400 || true; echo
 echo "- gps (up to 60 s, go near a window):"
 timeout 60 termux-location -p gps -r once || echo "no fix yet; that is fine indoors"
 echo
-echo "Done. Start a trip with:  trainnet record --label \"Praha -> Brno\""
+echo "Done. Type  trainnet  (or tap the 'Train record' widget): the page opens in the browser."

@@ -1,10 +1,12 @@
 """SQLite storage. One file holds every trip; long-format measurements keep the API simple."""
 import json
+import os
 import sqlite3
 import threading
 from pathlib import Path
 
-DEFAULT_DB = Path(__file__).resolve().parent.parent / "data" / "trainnet.sqlite"
+# One database for all trips, in the home folder so it survives reinstalls and updates.
+DEFAULT_DB = Path(os.environ.get("TRAINNET_DB", Path.home() / "trainnet-data" / "trainnet.sqlite"))
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions (

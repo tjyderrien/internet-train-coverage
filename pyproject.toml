@@ -1,16 +1,17 @@
 [project]
 name = "trainnet"
-version = "0.1.0"
+version = "0.2.0"
 description = "Wi-Fi and internet quality along train trips, as a 1D map"
 requires-python = ">=3.11"
 license = "MIT"
-# Recording needs only the standard library (so it installs cleanly in Termux).
+# The app needs only the standard library (so it installs cleanly in Termux).
 dependencies = [
     "pyobjc-framework-CoreWLAN; sys_platform == 'darwin'",
 ]
 
 [project.optional-dependencies]
-analysis = ["numpy", "fastapi", "uvicorn"]
+# only for the advanced multi-trip analysis (trainnet profile)
+analysis = ["numpy"]
 
 [project.scripts]
 trainnet = "trainnet.cli:main"
@@ -21,3 +22,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["trainnet"]
+
+[tool.setuptools.package-data]
+trainnet = ["web/*.html"]

@@ -1,4 +1,9 @@
-"""Command line: trainnet record | portal-test | gpx | route | towers | profile | serve | export | merge"""
+"""Command line.
+
+  trainnet                 open the app (Start/Stop page in the browser). This is all most people need.
+
+Advanced: record (terminal only) | export | merge | portal-test | gpx | route | towers | profile
+"""
 import argparse
 import json
 import sys
@@ -36,9 +41,12 @@ def _status(rec):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="trainnet")
+    ap = argparse.ArgumentParser(
+        prog="trainnet", description="Run without a command to open the app in your browser.")
     ap.add_argument("--db", default=DEFAULT_DB)
-    sub = ap.add_subparsers(dest="cmd", required=True)
+    ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--no-browser", action="store_true", help="do not open the browser")
+    sub = ap.add_subparsers(dest="cmd", metavar="command")
 
     p = sub.add_parser("record", help="record a trip (Ctrl-C to stop)")
     p.add_argument("--label")
@@ -82,14 +90,14 @@ def main(argv=None):
     p.add_argument("--bin", type=int, default=500)
     p.add_argument("--no-weather", action="store_true")
 
-    p = sub.add_parser("serve", help="start the HTTP API for the frontend")
-    p.add_argument("--port", type=int, default=8765)
-    p.add_argument("--host", default="127.0.0.1")
-
     a = ap.parse_args(argv)
     db = DB(a.db)
 
-    if a.cmd == "record":
+    if a.cmd is None:
+        from .server import serve
+        serve(db, a.port, not a.no_browser)
+
+    elif a.cmd == "record":
         from . import android
         from .collect import Recorder
         url = PORTAL_PRESETS.get(a.portal, a.portal)
@@ -153,12 +161,6 @@ def main(argv=None):
         prof = analyze.profile(db, a.route, ids, a.bin, not a.no_weather)
         print(json.dumps({"profile": prof, "correlations": analyze.correlations(prof)},
                          indent=1))
-
-    elif a.cmd == "serve":
-        import os
-        import uvicorn
-        os.environ["TRAINNET_DB"] = str(a.db)
-        uvicorn.run("trainnet.api:app", host=a.host, port=a.port)
 
 
 if __name__ == "__main__":
